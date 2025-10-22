@@ -1,0 +1,338 @@
+import React, {useState, useEffect} from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Image,
+  ScrollView,
+  FlatList,
+  ActivityIndicator,
+} from 'react-native';
+import {useSelector} from 'react-redux';
+import {useTranslation} from 'react-i18next';
+import {Colors} from '../../../utils/Colors';
+import styles from './styles';
+import BackHeader from '../../../components/BackHeader';
+import {performanceTypes as defaultPerformanceTypes} from '../../../utils/DummyData';
+import ChallangesPerformanceGraph from '../../../components/ChallangesPerformance';
+import ExerciseGraph from '../../../components/ExercisesGraph';
+import TotalChallengesGraph from '../../../components/TotalChallangesGraph';
+import {wp} from '../../../utils/responsivesness';
+import {
+  getChallangePerformance,
+  getChallengeCategoriesTypes,
+} from '../../../services/calls';
+import {IMAGES} from '../../../assets/images';
+import {PerformanceType} from '../../../interfaces';
+import utils from '../../../utils/utils';
+
+interface MyPerformanceProps {
+  navigation?: any;
+  route?: any;
+}
+
+interface ChallengeCategory {
+  _id: string;
+  name: string;
+  types: Array<{
+    _id: string;
+    name: string;
+    rules?: string[];
+  }>;
+}
+interface PerformanceType1 {
+  type: string;
+  icon: any;
+  _id?: string;
+  types?: Array<{
+    _id: string;
+    name: string;
+    rules?: string[];
+  }>;
+}
+const ringData = [
+  {label: 'Total Sets', value: '03', borderColor: Colors.green},
+  {label: 'Total Reps', value: '12', borderColor: Colors.primaryColor},
+  {label: 'Total Weight', value: '60kg', borderColor: '#F75555'},
+];
+const MyPerformance: React.FC<MyPerformanceProps> = ({navigation, route}) => {
+  const {t} = useTranslation();
+  const isDarkMode = useSelector((state: any) => state.theme?.switchDarkTheme);
+  const [selectedType, setSelectedType] = useState<string>('Endurance');
+  const [performanceTypes, setPerformanceTypes] = useState<PerformanceType[]>(
+    [],
+  );
+  const refresh = route?.params?.refresh;
+  const [performanceTypes1, setPerformanceTypes1] = useState<
+    PerformanceType1[]
+  >(defaultPerformanceTypes);
+  const [loader, setLoader] = useState(false);
+  useEffect(() => {
+    const fetchChallengeCategories = async () => {
+      try {
+        setLoader(true);
+        const response = await getChallangePerformance('performanceChallenges');
+        if (response?.data) {
+          // Map API response to match the expected format
+          setPerformanceTypes(response?.data);
+        }
+      } catch (error) {
+        console.error('Error fetching challenge categories:', error);
+        // Keep using default data if API fails
+      } finally {
+        setLoader(false);
+      }
+    };
+
+    fetchChallengeCategories();
+  }, []);
+  //Get performance1
+  const getPerformance1 = async () => {
+    try {
+      const response = await getChallengeCategoriesTypes();
+      if (response?.data) {
+        const mappedData = response.data.map((item: ChallengeCategory) => {
+          // Map category names to icon images
+          const iconMap: {[key: string]: any} = {
+            Strength: IMAGES.strength,
+            Power: IMAGES.power,
+            Speed: IMAGES.speed,
+            Endurance: IMAGES.heart,
+          };
+
+          return {
+            type: item.name,
+            icon: iconMap[item.name] || IMAGES.strength, // fallback to strength icon
+            _id: item._id,
+            types: item.types || [],
+          };
+        });
+        setPerformanceTypes1(mappedData);
+      }
+    } catch (error) {
+      utils.errorMessage(error);
+    }
+  };
+  useEffect(() => {
+    getPerformance1();
+  }, [refresh]);
+
+  const backgroundColor = isDarkMode
+    ? Colors.darkBackground
+    : Colors.lightBackground;
+  const containerBg = isDarkMode ? Colors.darkInputBg : Colors.lightInputBg;
+  const textColor = isDarkMode ? Colors.white : Colors.black;
+  const textColor2 = isDarkMode ? Colors.gray : Colors.black;
+  return (
+    <View style={[styles.screen, {backgroundColor}]}>
+      <BackHeader
+        title={t('My Performance')}
+        rightIconName={isDarkMode ? 'shareIcon' : 'lightShare'}
+      />
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}>
+        <View style={[styles.container, {backgroundColor: containerBg}]}>
+          <FlatList
+            data={performanceTypes1}
+            horizontal
+            nestedScrollEnabled
+            keyExtractor={item => item.type}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[
+              styles.buttonRow,
+              {flexGrow: 1, justifyContent: 'center'},
+            ]}
+            renderItem={({item}) => {
+              const isSelected = selectedType === item._id;
+              return (
+                <View style={styles.buttonWrapper}>
+                  <TouchableOpacity
+                    onPress={() => setSelectedType(item.type)}
+                    style={[
+                      styles.typeButton,
+                      {
+                        backgroundColor: isSelected
+                          ? Colors.primaryColor
+                          : isDarkMode
+                          ? '#2C2C2E'
+                          : '#E0E0E0',
+                      },
+                    ]}>
+                    <Image
+                      source={item?.icon}
+                      style={[
+                        styles.icon,
+                        {tintColor: isSelected ? '#FFF' : Colors.primaryColor},
+                      ]}
+                      resizeMode="contain"
+                    />
+                  </TouchableOpacity>
+                  <View>
+                    <Text style={[styles.buttonText, {color: textColor}]}>
+                      {t(item.type)}
+                    </Text>
+                  </View>
+                </View>
+              );
+            }}
+            ListEmptyComponent={() => {
+              return (
+                <View
+                  style={{
+                    flex: 1,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    flexDirection: 'row',
+                  }}>
+                  {loader ? (
+                    <ActivityIndicator />
+                  ) : (
+                    <Text style={[styles.buttonText, {color: textColor}]}>
+                      No Perfromance Found
+                    </Text>
+                  )}
+                </View>
+              );
+            }}
+          />
+
+          <ChallangesPerformanceGraph
+            title="Back Squat"
+            personalBest="PB: 80KG"
+            data={[20, 20, 0, 20, 5, 50, 20, 30, 40, 30, 20, 40]}
+            height={200}
+            width={wp(83)}
+            labels={['6 Feb', '12 Feb', '14 Feb', '20 Feb', '26 Feb', '28 Feb']}
+            propsForDots={{
+              r: '3',
+              strokeWidth: '1',
+              stroke: Colors.primaryColor,
+              fill: Colors.black,
+            }}
+          />
+
+          <View style={styles.ringRow}>
+            {ringData.map(({label, value, borderColor}) => (
+              <View key={label} style={styles.ringContainer}>
+                <View style={[styles.ring, {borderColor: borderColor}]}>
+                  <Text style={[styles.ringValue, {color: textColor}]}>
+                    {value}
+                  </Text>
+                </View>
+                <Text style={[styles.ringLabel, {color: textColor2}]}>
+                  {t(label)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+        <ExerciseGraph />
+        <View style={styles.challengeSection}>
+          <Text style={[styles.challengeTitle, {color: textColor}]}>
+            {t('Choose Your Challenge Focus')}
+          </Text>
+
+          <View style={styles.challengeGrid}>
+            {performanceTypes.map((item: PerformanceType) => {
+              const isSelected = selectedType === item?.name;
+              return (
+                <View key={item?.name} style={styles.challengeItem}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSelectedType(item?.name);
+                      if (
+                        ['Speed', 'Power', 'Strength', 'Endurance'].includes(
+                          item?.name,
+                        )
+                      ) {
+                        navigation.navigate('Endurance', {
+                          performance: item,
+                        });
+                      }
+                    }}
+                    style={[
+                      styles.challengeBox,
+                      {
+                        backgroundColor: containerBg,
+                        ...(isSelected && {
+                          borderWidth: 1,
+                          borderColor: Colors.primaryColor,
+                        }),
+                      },
+                    ]}>
+                    <Image
+                      source={{uri: item?.image}}
+                      style={styles.challengeImage}
+                      resizeMode="contain"
+                    />
+                  </TouchableOpacity>
+                  <Text style={[styles.challengeLabel, {color: textColor}]}>
+                    {t(item?.name)}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+        <TotalChallengesGraph />
+        <View style={[styles.challangeView, {backgroundColor: containerBg}]}>
+          <Text style={[styles.challengeTitle, {color: textColor}]}>
+            {t('Challenge Performance')}
+          </Text>
+          <View style={[styles.buttonRow]}>
+            {performanceTypes.map(({name, image}) => {
+              const isSelected = selectedType === name;
+              return (
+                <View key={name} style={styles.buttonWrapper}>
+                  <TouchableOpacity
+                    onPress={() => setSelectedType(name)}
+                    style={[
+                      styles.typeButton,
+                      {
+                        backgroundColor: isSelected
+                          ? Colors.primaryColor
+                          : isDarkMode
+                          ? '#2C2C2E'
+                          : '#E0E0E0',
+                      },
+                    ]}>
+                    <Image
+                      source={{uri: image}}
+                      style={[
+                        styles.icon,
+                        {
+                          tintColor: isSelected ? '#FFF' : Colors.primaryColor,
+                        },
+                      ]}
+                      resizeMode="contain"
+                    />
+                  </TouchableOpacity>
+                  <Text style={[styles.buttonText, {color: textColor}]}>
+                    {t(name)}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+          <ChallangesPerformanceGraph
+            title="1 KM Trail"
+            personalBest="PB: 6:45"
+            data={[20, 20, 0, 20, 5, 50, 20, 30, 40, 30, 20, 40]}
+            height={200}
+            width={wp(83)}
+            labels={['6 Feb', '12 Feb', '14 Feb', '20 Feb', '26 Feb', '28 Feb']}
+            propsForDots={{
+              r: '3',
+              strokeWidth: '1',
+              stroke: Colors.primaryColor,
+              fill: Colors.black,
+            }}
+          />
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
+
+export default MyPerformance;
